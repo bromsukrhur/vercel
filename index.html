@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="환율분석">
+  <title>환율 대시보드 | bromsukrhur</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --card: #1a1a26;
+      --border: #2a2a3d;
+      --accent: #4f7cff;
+      --accent2: #ff6b35;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --text: #f0f0f8;
+      --muted: #6b6b8a;
+      --font: 'Syne', sans-serif;
+      --mono: 'IBM Plex Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* 배경 그리드 */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(79,124,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,124,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* 헤더 */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .logo-text {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(46,204,113,0.1);
+      border: 1px solid rgba(46,204,113,0.3);
+      color: var(--green);
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .refresh-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover { background: var(--border); }
+    .refresh-btn.spinning { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 메인 */
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    /* 탑 스탯 바 */
+    .top-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .rate-hero {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .rate-hero:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .rate-hero::after {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      opacity: 0.06;
+    }
+
+    .rate-hero.usd::after { background: var(--accent); }
+    .rate-hero.jpy::after { background: var(--accent2); }
+
+    .rate-label {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .rate-pair {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .rate-value {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .rate-hero.usd .rate-value { color: var(--accent); }
+    .rate-hero.jpy .rate-value { color: var(--accent2); }
+
+    .rate-unit {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .rate-change {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .up { background: rgba(46,204,113,0.12); color: var(--green); }
+    .down { background: rgba(231,76,60,0.12); color: var(--red); }
+
+    .rate-stats-mini {
+      display: flex;
+      gap: 16px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .stat-mini {
+      flex: 1;
+    }
+
+    .stat-mini-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-bottom: 3px;
+    }
+
+    .stat-mini-value {
+      font-size: 13px;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    /* 탭 */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      background: none;
+      color: var(--muted);
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 7px;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* 섹션 */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* 카드 */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    /* AI 분석 */
+    .analysis-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 80px;
+    }
+
+    .analysis-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 16px;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    .meta-item span {
+      color: var(--accent);
+    }
+
+    /* 차트 */
+    .chart-wrap {
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    /* 테이블 */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-family: var(--mono);
+    }
+
+    .data-table th {
+      text-align: right;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table th:first-child { text-align: left; }
+
+    .data-table td {
+      padding: 10px 12px;
+      text-align: right;
+      border-bottom: 1px solid rgba(42,42,61,0.5);
+    }
+
+    .data-table td:first-child { text-align: left; color: var(--muted); }
+
+    .data-table tr:hover td { background: rgba(79,124,255,0.04); }
+
+    /* 설정 폼 */
+    .form-row {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus { border-color: var(--accent); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: #3d6bef; }
+
+    .btn-secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { background: var(--border); }
+
+    /* 상태 메시지 */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .loading-spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* 반응형 */
+    @media (max-width: 640px) {
+      header { padding: 12px 16px; }
+      main { padding: 20px 16px 80px; }
+      .top-bar { grid-template-columns: 1fr; }
+      .rate-value { font-size: 32px; }
+      .logo-sub { display: none; }
+    }
+
+    @media (min-width: 768px) {
+      .top-bar { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* 데이터 없을때 */
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .empty-state .big { font-size: 32px; margin-bottom: 8px; }
+
+    /* 알림 토스트 */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-family: var(--mono);
+      z-index: 999;
+      transition: transform 0.3s;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">₩</div>
+    <div>
+      <div class="logo-text">환율 대시보드</div>
+      <div class="logo-sub">bromsukrhur / exchange-rate</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+    <button class="refresh-btn" onclick="loadRates()">⟳ 새로고침</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- 상단 환율 카드 -->
+  <div class="top-bar">
+    <div class="rate-hero usd">
+      <div class="rate-label">USD / KRW</div>
+      <div class="rate-pair">🇺🇸 미국 달러 → 🇰🇷 한국 원</div>
+      <div class="rate-value" id="usd-val">—<span class="rate-unit"> 원</span></div>
+      <div class="rate-change down" id="usd-chg">로딩 중...</div>
+      <div class="rate-stats-mini">
+        <div class="stat-mini">
+          <div class="stat-mini-label">1일</div>
+          <div class="stat-mini-value" id="usd-1d">—</div>
+        </div>
+        <div class="stat-mini">
+          <div class="stat-mini-label">7일</div>
+          <div class="stat-mini-value" id="usd-7d">—</div>
+        </div>
+        <div class="stat-mini">
+          <div class="stat-mini-label">30일</div>
+          <div class="stat-mini-value" id="usd-30d">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rate-hero jpy">
+      <div class="rate-label">JPY / KRW</div>
+      <div class="rate-pair">🇯🇵 일본 엔 → 🇰🇷 한국 원</div>
+      <div class="rate-value" id="jpy-val">—<span class="rate-unit"> 원</span></div>
+      <div class="rate-change up" id="jpy-chg">로딩 중...</div>
+      <div class="rate-stats-mini">
+        <div class="stat-mini">
+          <div class="stat-mini-label">1일</div>
+          <div class="stat-mini-value" id="jpy-1d">—</div>
+        </div>
+        <div class="stat-mini">
+          <div class="stat-mini-label">7일</div>
+          <div class="stat-mini-value" id="jpy-7d">—</div>
+        </div>
+        <div class="stat-mini">
+          <div class="stat-mini-label">30일</div>
+          <div class="stat-mini-value" id="jpy-30d">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 탭 -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('analysis', this)">🤖 AI 분석</button>
+    <button class="tab" onclick="switchTab('chart', this)">📈 차트</button>
+    <button class="tab" onclick="switchTab('history', this)">📅 히스토리</button>
+    <button class="tab" onclick="switchTab('settings', this)">⚙️ 설정</button>
+  </div>
+
+  <!-- AI 분석 섹션 -->
+  <div id="analysis" class="section active">
+    <div class="card">
+      <div class="card-title">Claude AI 분석</div>
+      <div class="status-bar" id="analysis-status">
+        <div class="loading-spinner" id="analysis-spinner" style="display:none"></div>
+        <span id="analysis-status-text">API 키를 설정하면 분석을 받을 수 있습니다</span>
+      </div>
+      <div class="analysis-box" id="analysis-text">⚙️ 설정 탭에서 Claude API 키와 Finnhub API 키를 입력하면 AI 분석을 볼 수 있습니다.</div>
+      <div class="analysis-meta">
+        <div class="meta-item">입력 토큰: <span id="tok-in">—</span></div>
+        <div class="meta-item">출력 토큰: <span id="tok-out">—</span></div>
+        <div class="meta-item">비용: <span id="analysis-cost">—</span></div>
+        <div class="meta-item">시간: <span id="analysis-time">—</span></div>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="runAnalysis()">분석 실행</button>
+        <button class="btn btn-secondary" onclick="exportCSV()">CSV 내보내기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 차트 섹션 -->
+  <div id="chart" class="section">
+    <div class="card">
+      <div class="card-title">30일 추세</div>
+      <div class="chart-wrap">
+        <canvas id="rateChart" height="80"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 히스토리 섹션 -->
+  <div id="history" class="section">
+    <div class="card">
+      <div class="card-title">최근 데이터</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="text-align:left">날짜</th>
+              <th>USD/KRW</th>
+              <th>JPY/KRW</th>
+              <th>USD 변화</th>
+              <th>JPY 변화</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <tr><td colspan="5" style="text-align:center; color:var(--muted); padding:20px">데이터 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설정 섹션 -->
+  <div id="settings" class="section">
+    <div class="card">
+      <div class="card-title">API 키 설정</div>
+
+      <div class="form-row">
+        <label class="form-label">AIPRIMETECH API KEY (1순위 — 테스트용)</label>
+        <input class="form-input" type="password" id="prime-key" placeholder="aiprimetech.io 에서 발급" autocomplete="off">
+        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono)">
+          → https://aiprimetech.io — 실패 시 공식 Claude로 자동 전환
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">FINNHUB API KEY (환율 데이터)</label>
+        <input class="form-input" type="password" id="finnhub-key" placeholder="finnhub에서 발급 (무료)" autocomplete="off">
+        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono)">
+          → https://finnhub.io 에서 무료 발급
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">CLAUDE API KEY (AI 분석)</label>
+        <input class="form-input" type="password" id="claude-key" placeholder="sk-ant-..." autocomplete="off">
+        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono)">
+          → https://console.anthropic.com 에서 발급
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+        <button class="btn btn-primary" onclick="saveSettings()">저장</button>
+        <button class="btn btn-secondary" onclick="testKeys()">연결 테스트</button>
+        <button class="btn btn-secondary" onclick="clearSettings()">초기화</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">자동 업데이트</div>
+      <div style="font-size:13px; color:var(--muted); line-height:1.8; font-family:var(--mono)">
+        <p>• 환율 데이터: 페이지 로드 시 자동 수집</p>
+        <p>• AI 분석: 수동 실행 (토큰 절약)</p>
+        <p>• 히스토리: 로컬 스토리지 저장</p>
+        <p>• GitHub에 푸시하면 Vercel이 자동 배포</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">이 프로젝트</div>
+      <div style="font-size:12px; color:var(--muted); line-height:2; font-family:var(--mono)">
+        <p>GitHub: <a href="https://github.com/bromsukrhur" style="color:var(--accent)">bromsukrhur</a></p>
+        <p>로컬: E:\Projects\vercel\index.html</p>
+        <p>호스팅: Vercel (자동 배포)</p>
+        <p>비용: 월 ~300원 (Claude API)</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+// ===== 로컬 스토리지 키 =====
+const KEYS = {
+  finnhub: 'fx_finnhub_key',
+  prime:   'fx_prime_key',
+  claude:  'fx_claude_key',
+  history: 'fx_history',
+  lastAnalysis: 'fx_last_analysis'
+};
+
+// ===== 상태 =====
+let chartInstance = null;
+
+// ===== 초기화 =====
+window.addEventListener('DOMContentLoaded', () => {
+  loadSavedKeys();
+  loadRates();
+  loadHistoryTable();
+  renderChart();
+});
+
+// ===== 환율 수집 =====
+async function loadRates() {
+  const apiKey = getKey(KEYS.finnhub);
+  if (!apiKey) {
+    showDemoData();
+    return;
+  }
+
+  try {
+    const url = `https://finnhub.io/api/v1/forex/rates?base=USD&token=${apiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('API 오류');
+    const data = await res.json();
+
+    const usd = parseFloat(data.quote['USDKRW'] || 1380);
+    const usdjpy = parseFloat(data.quote['USDJPY'] || 156);
+    const jpy = 1 / usdjpy * 100;
+
+    updateRateDisplay(usd, jpy);
+    saveToHistory(usd, jpy);
+    loadHistoryTable();
+    renderChart();
+    showToast('✅ 환율 업데이트 완료');
+  } catch (e) {
+    showToast('⚠️ 환율 수집 실패 - API 키를 확인하세요');
+    showDemoData();
+  }
+}
+
+// ===== 환율 표시 업데이트 =====
+function updateRateDisplay(usd, jpy) {
+  const history = getHistory();
+
+  document.getElementById('usd-val').innerHTML = `${usd.toFixed(2)}<span class="rate-unit"> 원</span>`;
+  document.getElementById('jpy-val').innerHTML = `${jpy.toFixed(2)}<span class="rate-unit"> 원</span>`;
+
+  // 변화량 계산
+  if (history.length >= 2) {
+    const prev = history[history.length - 1];
+    const usdChg = usd - prev.usd;
+    const jpyChg = jpy - prev.jpy;
+
+    const usdEl = document.getElementById('usd-chg');
+    usdEl.textContent = `${usdChg >= 0 ? '+' : ''}${usdChg.toFixed(2)} (${(usdChg/prev.usd*100).toFixed(2)}%)`;
+    usdEl.className = `rate-change ${usdChg >= 0 ? 'up' : 'down'}`;
+
+    const jpyEl = document.getElementById('jpy-chg');
+    jpyEl.textContent = `${jpyChg >= 0 ? '+' : ''}${jpyChg.toFixed(4)} (${(jpyChg/prev.jpy*100).toFixed(2)}%)`;
+    jpyEl.className = `rate-change ${jpyChg >= 0 ? 'up' : 'down'}`;
+  }
+
+  // 7일, 30일 변화
+  const stats = calcStats(usd, jpy, history);
+  document.getElementById('usd-1d').textContent = fmt(stats.usd1d);
+  document.getElementById('usd-7d').textContent = fmt(stats.usd7d);
+  document.getElementById('usd-30d').textContent = fmt(stats.usd30d);
+  document.getElementById('jpy-1d').textContent = fmt(stats.jpy1d, 4);
+  document.getElementById('jpy-7d').textContent = fmt(stats.jpy7d, 4);
+  document.getElementById('jpy-30d').textContent = fmt(stats.jpy30d, 4);
+}
+
+function fmt(val, decimals = 2) {
+  if (val === null || val === undefined) return '—';
+  return `${val >= 0 ? '+' : ''}${val.toFixed(decimals)}`;
+}
+
+function calcStats(usd, jpy, history) {
+  const get = (n) => history.length > n ? history[history.length - n - 1] : null;
+  const p1 = get(1), p7 = get(7), p30 = get(30);
+  return {
+    usd1d: p1 ? usd - p1.usd : null,
+    usd7d: p7 ? usd - p7.usd : null,
+    usd30d: p30 ? usd - p30.usd : null,
+    jpy1d: p1 ? jpy - p1.jpy : null,
+    jpy7d: p7 ? jpy - p7.jpy : null,
+    jpy30d: p30 ? jpy - p30.jpy : null,
+  };
+}
+
+// ===== 데모 데이터 =====
+function showDemoData() {
+  document.getElementById('usd-val').innerHTML = `1,385.20<span class="rate-unit"> 원</span>`;
+  document.getElementById('jpy-val').innerHTML = `8.87<span class="rate-unit"> 원</span>`;
+  document.getElementById('usd-chg').textContent = '-3.50 (-0.25%)';
+  document.getElementById('usd-chg').className = 'rate-change down';
+  document.getElementById('jpy-chg').textContent = '+0.02 (+0.23%)';
+  document.getElementById('jpy-chg').className = 'rate-change up';
+}
+
+// ===== 히스토리 =====
+function saveToHistory(usd, jpy) {
+  const history = getHistory();
+  const today = new Date().toISOString().split('T')[0];
+
+  // 오늘 데이터가 이미 있으면 업데이트
+  const idx = history.findIndex(h => h.date === today);
+  const entry = { date: today, usd, jpy };
+
+  if (idx >= 0) history[idx] = entry;
+  else history.push(entry);
+
+  // 최근 90일만 유지
+  const trimmed = history.slice(-90);
+  localStorage.setItem(KEYS.history, JSON.stringify(trimmed));
+}
+
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(KEYS.history) || '[]');
+  } catch { return []; }
+}
+
+// ===== 히스토리 테이블 =====
+function loadHistoryTable() {
+  const history = getHistory().slice(-30).reverse();
+  const tbody = document.getElementById('history-body');
+
+  if (!history.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:20px">데이터 없음</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = history.map((row, i) => {
+    const prev = history[i + 1];
+    const usdChg = prev ? row.usd - prev.usd : 0;
+    const jpyChg = prev ? row.jpy - prev.jpy : 0;
+    const usdColor = usdChg > 0 ? 'var(--green)' : usdChg < 0 ? 'var(--red)' : 'var(--muted)';
+    const jpyColor = jpyChg > 0 ? 'var(--green)' : jpyChg < 0 ? 'var(--red)' : 'var(--muted)';
+    return `
+      <tr>
+        <td>${row.date}</td>
+        <td>${row.usd.toFixed(2)}</td>
+        <td>${row.jpy.toFixed(4)}</td>
+        <td style="color:${usdColor}">${usdChg >= 0 ? '+' : ''}${usdChg.toFixed(2)}</td>
+        <td style="color:${jpyColor}">${jpyChg >= 0 ? '+' : ''}${jpyChg.toFixed(4)}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ===== 차트 =====
+function renderChart() {
+  const history = getHistory().slice(-30);
+  const ctx = document.getElementById('rateChart').getContext('2d');
+
+  if (chartInstance) chartInstance.destroy();
+
+  if (!history.length) return;
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: history.map(h => h.date.slice(5)),
+      datasets: [
+        {
+          label: 'USD/KRW',
+          data: history.map(h => h.usd),
+          borderColor: '#4f7cff',
+          backgroundColor: 'rgba(79,124,255,0.08)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 3,
+          pointBackgroundColor: '#4f7cff',
+          yAxisID: 'y'
+        },
+        {
+          label: 'JPY/KRW ×100',
+          data: history.map(h => h.jpy * 100),
+          borderColor: '#ff6b35',
+          backgroundColor: 'rgba(255,107,53,0.08)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 3,
+          pointBackgroundColor: '#ff6b35',
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#6b6b8a', font: { family: 'IBM Plex Mono', size: 11 } }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b6b8a', font: { family: 'IBM Plex Mono', size: 10 } },
+          grid: { color: 'rgba(42,42,61,0.5)' }
+        },
+        y: {
+          position: 'left',
+          ticks: { color: '#4f7cff', font: { family: 'IBM Plex Mono', size: 10 } },
+          grid: { color: 'rgba(42,42,61,0.5)' }
+        },
+        y1: {
+          position: 'right',
+          ticks: { color: '#ff6b35', font: { family: 'IBM Plex Mono', size: 10 } },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+}
+
+// ===== AI 분석 (aiprimetech 우선 → 공식 Claude 자동 폴백) =====
+async function runAnalysis() {
+  const primeKey  = getKey(KEYS.prime);
+  const claudeKey = getKey(KEYS.claude);
+
+  if (!primeKey && !claudeKey) {
+    showToast('⚠️ 설정 탭에서 API 키를 입력하세요');
+    switchTab('settings', document.querySelector('[onclick*="settings"]'));
+    return;
+  }
+
+  const history = getHistory().slice(-30);
+  if (!history.length) {
+    showToast('⚠️ 환율 데이터 없음. 새로고침을 먼저 누르세요');
+    return;
+  }
+
+  document.getElementById('analysis-spinner').style.display = 'block';
+  document.getElementById('analysis-text').textContent = '⏳ 분석 중...';
+
+  // CSV 최소 포맷
+  const csv = 'Date,USD,JPY\n' + history.map(h =>
+    `${h.date},${h.usd.toFixed(2)},${h.jpy.toFixed(4)}`
+  ).join('\n');
+
+  const prompt = `환율 (30일):\n${csv}\n\n분석:\n1) USD/KRW 트렌드\n2) JPY/KRW 트렌드\n3) 투자 조언\n(각 1-2문장)`;
+
+  const body = JSON.stringify({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 200,
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  // 1순위: aiprimetech
+  if (primeKey) {
+    setStatus('🔄 aiprimetech 연결 중...');
+    try {
+      const data = await callAPI('https://aiprimetech.io/v1/messages', primeKey, body);
+      showResult(data, 'aiprimetech');
+      return;
+    } catch (e) {
+      setStatus(`⚠️ aiprimetech 실패: ${e.message} → 공식 API로 전환`);
+      showToast('⚠️ aiprimetech 실패 → 공식 Claude로 전환 중...');
+      await sleep(800);
+    }
+  }
+
+  // 2순위: 공식 Claude API
+  if (claudeKey) {
+    setStatus('🔄 공식 Claude API 연결 중...');
+    try {
+      const data = await callAPI('https://api.anthropic.com/v1/messages', claudeKey, body, true);
+      showResult(data, '공식 Claude');
+      return;
+    } catch (e) {
+      document.getElementById('analysis-text').textContent = `❌ 모든 API 실패\naiprimetech: 연결 불가\n공식 Claude: ${e.message}`;
+      showToast('❌ 모든 API 실패');
+    }
+  } else {
+    document.getElementById('analysis-text').textContent = '❌ aiprimetech 실패\n공식 Claude API 키도 없음\n→ 설정에서 공식 키 추가하세요';
+    showToast('❌ 공식 Claude API 키를 설정에 추가하세요');
+  }
+
+  document.getElementById('analysis-spinner').style.display = 'none';
+}
+
+async function callAPI(url, key, body, isOfficial = false) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': key,
+    'anthropic-version': '2023-06-01'
+  };
+  if (isOfficial) headers['anthropic-dangerous-direct-browser-access'] = 'true';
+
+  const res = await fetch(url, { method: 'POST', headers, body });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  if (!data.content?.[0]?.text) throw new Error('응답 형식 오류');
+  return data;
+}
+
+function showResult(data, source) {
+  const text   = data.content[0].text;
+  const tokIn  = data.usage?.input_tokens  || 0;
+  const tokOut = data.usage?.output_tokens || 0;
+  const cost   = Math.round(((tokIn / 1e6 * 3) + (tokOut / 1e6 * 15)) * 1400);
+  const now    = new Date().toLocaleString('ko-KR');
+
+  document.getElementById('analysis-text').textContent = text;
+  document.getElementById('tok-in').textContent   = tokIn.toLocaleString();
+  document.getElementById('tok-out').textContent  = tokOut.toLocaleString();
+  document.getElementById('analysis-cost').textContent = `~${cost}원`;
+  document.getElementById('analysis-time').textContent = `${now} (${source})`;
+  setStatus(`✅ 마지막 분석: ${now} — ${source}`);
+  document.getElementById('analysis-spinner').style.display = 'none';
+  localStorage.setItem(KEYS.lastAnalysis, JSON.stringify({ text, tokIn, tokOut, time: now, source }));
+  showToast(`✅ 분석 완료 (${source})`);
+}
+
+function setStatus(msg) {
+  document.getElementById('analysis-status-text').textContent = msg;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== CSV 내보내기 =====
+function exportCSV() {
+  const history = getHistory();
+  if (!history.length) { showToast('⚠️ 데이터가 없습니다'); return; }
+
+  const csv = 'Date,USD,JPY\n' + history.map(h =>
+    `${h.date},${h.usd.toFixed(2)},${h.jpy.toFixed(4)}`
+  ).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `환율_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  showToast('✅ CSV 다운로드 완료');
+}
+
+// ===== 설정 =====
+function saveSettings() {
+  const finnhub = document.getElementById('finnhub-key').value.trim();
+  const prime   = document.getElementById('prime-key').value.trim();
+  const claude  = document.getElementById('claude-key').value.trim();
+
+  if (finnhub && !finnhub.startsWith('•')) localStorage.setItem(KEYS.finnhub, finnhub);
+  if (prime   && !prime.startsWith('•'))   localStorage.setItem(KEYS.prime,   prime);
+  if (claude  && !claude.startsWith('•'))  localStorage.setItem(KEYS.claude,  claude);
+
+  showToast('✅ 저장 완료');
+  loadRates();
+}
+
+function loadSavedKeys() {
+  const finnhub = getKey(KEYS.finnhub);
+  const prime   = getKey(KEYS.prime);
+  const claude  = getKey(KEYS.claude);
+
+  if (finnhub) document.getElementById('finnhub-key').value = '••••••' + finnhub.slice(-4);
+  if (prime)   document.getElementById('prime-key').value   = '••••••' + prime.slice(-4);
+  if (claude)  document.getElementById('claude-key').value  = '••••••' + claude.slice(-4);
+}
+
+function clearSettings() {
+  if (!confirm('저장된 API 키를 모두 삭제할까요?')) return;
+  Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+  document.getElementById('finnhub-key').value = '';
+  document.getElementById('claude-key').value = '';
+  showToast('🗑️ 초기화 완료');
+}
+
+async function testKeys() {
+  showToast('🔄 연결 테스트 중...');
+  const finnhub = getKey(KEYS.finnhub);
+  if (!finnhub) { showToast('⚠️ Finnhub API 키가 없습니다'); return; }
+
+  try {
+    const res = await fetch(`https://finnhub.io/api/v1/forex/rates?base=USD&token=${finnhub}`);
+    if (res.ok) showToast('✅ Finnhub 연결 성공!');
+    else showToast('❌ Finnhub 연결 실패');
+  } catch {
+    showToast('❌ 연결 실패');
+  }
+}
+
+function getKey(k) {
+  const val = localStorage.getItem(k);
+  return val && !val.startsWith('••') ? val : null;
+}
+
+// ===== 탭 전환 =====
+function switchTab(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+
+  if (id === 'chart') renderChart();
+  if (id === 'history') loadHistoryTable();
+}
+
+// ===== 토스트 알림 =====
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+
+</body>
+</html>
