@@ -542,8 +542,8 @@
     </div>
 
     <div class="rate-hero jpy">
-      <div class="rate-label">JPY / KRW</div>
-      <div class="rate-pair">🇯🇵 일본 엔 → 🇰🇷 한국 원</div>
+      <div class="rate-label">JPY 100 / KRW</div>
+      <div class="rate-pair">🇯🇵 일본 엔 100엔 → 🇰🇷 한국 원</div>
       <div class="rate-value" id="jpy-val">—<span class="rate-unit"> 원</span></div>
       <div class="rate-change up" id="jpy-chg">로딩 중...</div>
       <div class="rate-stats-mini">
@@ -719,27 +719,36 @@ async function loadRates() {
     {
       name: 'ExchangeRate-API',
       fetch: async () => {
-        const r = await fetch('https://open.er-api.com/v6/latest/USD');
+        const r = await fetch('https://open.er-api.com/v6/latest/JPY');
         const d = await r.json();
         if (d.result !== 'success') throw new Error('API 실패');
-        return { usd: d.rates['KRW'], jpy: (1 / d.rates['JPY']) * 100 };
+        const jpy100 = d.rates['KRW'] * 100;
+        const r2 = await fetch('https://open.er-api.com/v6/latest/USD');
+        const d2 = await r2.json();
+        return { usd: d2.rates['KRW'], jpy: jpy100 };
       }
     },
     {
       name: 'Fawaz Currency API',
       fetch: async () => {
-        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/jpy.json');
         const d = await r.json();
-        return { usd: d.usd['krw'], jpy: (1 / d.usd['jpy']) * 100 };
+        const jpy100 = d.jpy['krw'] * 100;
+        const r2 = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+        const d2 = await r2.json();
+        return { usd: d2.usd['krw'], jpy: jpy100 };
       }
     },
     {
       name: 'Frankfurter',
       fetch: async () => {
-        const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW,JPY');
+        const r = await fetch('https://api.frankfurter.app/latest?from=JPY&to=KRW');
         if (!r.ok) throw new Error('API 오류');
         const d = await r.json();
-        return { usd: d.rates['KRW'], jpy: (1 / d.rates['JPY']) * 100 };
+        const jpy100 = d.rates['KRW'] * 100;
+        const r2 = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+        const d2 = await r2.json();
+        return { usd: d2.rates['KRW'], jpy: jpy100 };
       }
     }
   ];
@@ -775,18 +784,21 @@ function updateRateDisplay(usd, jpy) {
 
   // 변화량: 이전 스냅샷(어제 or 직전 갱신) 기준
   const prevRaw = localStorage.getItem(KEYS.snapshot);
+  const usdEl = document.getElementById('usd-chg');
+  const jpyEl = document.getElementById('jpy-chg');
   if (prevRaw) {
     const prev = JSON.parse(prevRaw);
     const usdChg = usd - prev.usd;
     const jpyChg = jpy - prev.jpy;
-
-    const usdEl = document.getElementById('usd-chg');
     usdEl.textContent = `${usdChg >= 0 ? '+' : ''}${usdChg.toFixed(2)} (${(usdChg/prev.usd*100).toFixed(2)}%)`;
     usdEl.className = `rate-change ${usdChg >= 0 ? 'up' : 'down'}`;
-
-    const jpyEl = document.getElementById('jpy-chg');
-    jpyEl.textContent = `${jpyChg >= 0 ? '+' : ''}${jpyChg.toFixed(4)} (${(jpyChg/prev.jpy*100).toFixed(2)}%)`;
+    jpyEl.textContent = `${jpyChg >= 0 ? '+' : ''}${jpyChg.toFixed(2)} (${(jpyChg/prev.jpy*100).toFixed(2)}%)`;
     jpyEl.className = `rate-change ${jpyChg >= 0 ? 'up' : 'down'}`;
+  } else {
+    usdEl.textContent = '첫 로드 — 내일부터 변화량 표시';
+    usdEl.className = 'rate-change down';
+    jpyEl.textContent = '첫 로드 — 내일부터 변화량 표시';
+    jpyEl.className = 'rate-change down';
   }
 
   // 7일, 30일 변화
