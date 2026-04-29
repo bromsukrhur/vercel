@@ -717,38 +717,35 @@ async function loadRates() {
   // 여러 API 순차 시도 (하나 실패하면 다음으로)
   const apis = [
     {
-      name: 'ExchangeRate-API',
-      fetch: async () => {
-        const r = await fetch('https://open.er-api.com/v6/latest/JPY');
-        const d = await r.json();
-        if (d.result !== 'success') throw new Error('API 실패');
-        const jpy100 = d.rates['KRW'] * 100;
-        const r2 = await fetch('https://open.er-api.com/v6/latest/USD');
-        const d2 = await r2.json();
-        return { usd: d2.rates['KRW'], jpy: jpy100 };
-      }
-    },
-    {
       name: 'Fawaz Currency API',
       fetch: async () => {
-        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/jpy.json');
-        const d = await r.json();
-        const jpy100 = d.jpy['krw'] * 100;
-        const r2 = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
-        const d2 = await r2.json();
-        return { usd: d2.usd['krw'], jpy: jpy100 };
+        const [r1, r2] = await Promise.all([
+          fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json'),
+          fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/jpy.json')
+        ]);
+        const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+        return { usd: d1.usd['krw'], jpy: d2.jpy['krw'] * 100 };
       }
     },
     {
-      name: 'Frankfurter',
+      name: 'Fawaz Fallback',
       fetch: async () => {
-        const r = await fetch('https://api.frankfurter.app/latest?from=JPY&to=KRW');
-        if (!r.ok) throw new Error('API 오류');
+        const today = new Date().toISOString().split('T')[0];
+        const [r1, r2] = await Promise.all([
+          fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@' + today + '/v1/currencies/usd.json'),
+          fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@' + today + '/v1/currencies/jpy.json')
+        ]);
+        const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+        return { usd: d1.usd['krw'], jpy: d2.jpy['krw'] * 100 };
+      }
+    },
+    {
+      name: 'ExchangeRate-API',
+      fetch: async () => {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD');
         const d = await r.json();
-        const jpy100 = d.rates['KRW'] * 100;
-        const r2 = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
-        const d2 = await r2.json();
-        return { usd: d2.rates['KRW'], jpy: jpy100 };
+        if (d.result !== 'success') throw new Error('API 실패');
+        return { usd: d.rates['KRW'], jpy: (1 / d.rates['JPY']) * 100 * d.rates['KRW'] };
       }
     }
   ];
