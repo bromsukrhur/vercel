@@ -640,10 +640,12 @@
       </div>
 
       <div class="form-row">
-        <label class="form-label">FINNHUB API KEY (환율 데이터)</label>
-        <input class="form-input" type="password" id="finnhub-key" placeholder="finnhub에서 발급 (무료)" autocomplete="off">
-        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono)">
-          → https://finnhub.io 에서 무료 발급
+        <label class="form-label">환율 데이터 출처</label>
+        <div style="font-size:12px; color:var(--muted); font-family:var(--mono); padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; line-height:1.8;">
+          ✅ <strong style="color:var(--green)">ExchangeRate-API</strong> — API 키 불필요, 무료 (1순위)<br>
+          ✅ <strong style="color:var(--green)">Fawaz Currency API</strong> — API 키 불필요, 무료 (2순위)<br>
+          ✅ <strong style="color:var(--green)">Frankfurter</strong> — ECB 기준 (3순위)<br>
+          → 자동으로 순차 시도, 하나 실패시 다음 API로 전환
         </div>
       </div>
 
@@ -691,11 +693,12 @@
 <script>
 // ===== 로컬 스토리지 키 =====
 const KEYS = {
-  finnhub: 'fx_finnhub_key',
-  prime:   'fx_prime_key',
-  claude:  'fx_claude_key',
-  history: 'fx_history',
-  lastAnalysis: 'fx_last_analysis'
+  prime:        'fx_prime_key',
+  claude:       'fx_claude_key',
+  history:      'fx_history',
+  lastAnalysis: 'fx_last_analysis',
+  snapshot:     'fx_snapshot',
+  prevSnapshot: 'fx_prev_snapshot'
 };
 
 // ===== 상태 =====
@@ -711,31 +714,56 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ===== 환율 수집 =====
 async function loadRates() {
-  const apiKey = getKey(KEYS.finnhub);
-  if (!apiKey) {
-    showDemoData();
-    return;
+  // 여러 API 순차 시도 (하나 실패하면 다음으로)
+  const apis = [
+    {
+      name: 'ExchangeRate-API',
+      fetch: async () => {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD');
+        const d = await r.json();
+        if (d.result !== 'success') throw new Error('API 실패');
+        return { usd: d.rates['KRW'], jpy: (1 / d.rates['JPY']) * 100 };
+      }
+    },
+    {
+      name: 'Fawaz Currency API',
+      fetch: async () => {
+        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+        const d = await r.json();
+        return { usd: d.usd['krw'], jpy: (1 / d.usd['jpy']) * 100 };
+      }
+    },
+    {
+      name: 'Frankfurter',
+      fetch: async () => {
+        const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW,JPY');
+        if (!r.ok) throw new Error('API 오류');
+        const d = await r.json();
+        return { usd: d.rates['KRW'], jpy: (1 / d.rates['JPY']) * 100 };
+      }
+    }
+  ];
+
+  for (const api of apis) {
+    try {
+      setStatus('🔄 ' + api.name + ' 연결 중...');
+      const { usd, jpy } = await api.fetch();
+      if (!usd || !jpy) throw new Error('데이터 없음');
+      updateRateDisplay(usd, jpy);
+      saveToHistory(usd, jpy);
+      loadHistoryTable();
+      renderChart();
+      showToast('✅ 환율 업데이트 완료 (' + api.name + ')');
+      setStatus('✅ ' + api.name + ' — ' + new Date().toLocaleTimeString('ko-KR'));
+      return;
+    } catch (e) {
+      console.warn(api.name + ' 실패:', e.message);
+    }
   }
 
-  try {
-    const url = `https://finnhub.io/api/v1/forex/rates?base=USD&token=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('API 오류');
-    const data = await res.json();
-
-    const usd = parseFloat(data.quote['USDKRW'] || 1380);
-    const usdjpy = parseFloat(data.quote['USDJPY'] || 156);
-    const jpy = 1 / usdjpy * 100;
-
-    updateRateDisplay(usd, jpy);
-    saveToHistory(usd, jpy);
-    loadHistoryTable();
-    renderChart();
-    showToast('✅ 환율 업데이트 완료');
-  } catch (e) {
-    showToast('⚠️ 환율 수집 실패 - API 키를 확인하세요');
-    showDemoData();
-  }
+  showToast('⚠️ 모든 API 실패 — 데모 데이터 표시');
+  setStatus('⚠️ 환율 데이터를 가져올 수 없습니다');
+  showDemoData();
 }
 
 // ===== 환율 표시 업데이트 =====
@@ -745,9 +773,10 @@ function updateRateDisplay(usd, jpy) {
   document.getElementById('usd-val').innerHTML = `${usd.toFixed(2)}<span class="rate-unit"> 원</span>`;
   document.getElementById('jpy-val').innerHTML = `${jpy.toFixed(2)}<span class="rate-unit"> 원</span>`;
 
-  // 변화량 계산
-  if (history.length >= 2) {
-    const prev = history[history.length - 1];
+  // 변화량: 이전 스냅샷(어제 or 직전 갱신) 기준
+  const prevRaw = localStorage.getItem(KEYS.snapshot);
+  if (prevRaw) {
+    const prev = JSON.parse(prevRaw);
     const usdChg = usd - prev.usd;
     const jpyChg = jpy - prev.jpy;
 
@@ -802,13 +831,27 @@ function showDemoData() {
 function saveToHistory(usd, jpy) {
   const history = getHistory();
   const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
 
-  // 오늘 데이터가 이미 있으면 업데이트
+  // 오늘 데이터가 이미 있으면 업데이트 (updatedAt 기록)
   const idx = history.findIndex(h => h.date === today);
-  const entry = { date: today, usd, jpy };
+  const entry = { date: today, usd, jpy, updatedAt: now };
 
   if (idx >= 0) history[idx] = entry;
   else history.push(entry);
+
+  // 마지막 갱신 전 값을 별도 보관 (당일 변화량 계산용)
+  const prevSnapshot = localStorage.getItem(KEYS.prevSnapshot);
+  const currentSnapshot = localStorage.getItem(KEYS.snapshot);
+  if (currentSnapshot) {
+    const cur = JSON.parse(currentSnapshot);
+    if (cur.date !== today) {
+      localStorage.setItem(KEYS.prevSnapshot, currentSnapshot);
+    } else if (!prevSnapshot || JSON.parse(prevSnapshot).date !== today) {
+      // 당일 첫 갱신이면 이전 날 마지막 값 유지
+    }
+  }
+  localStorage.setItem(KEYS.snapshot, JSON.stringify({ date: today, usd, jpy, time: now }));
 
   // 최근 90일만 유지
   const trimmed = history.slice(-90);
@@ -1040,11 +1083,9 @@ function exportCSV() {
 
 // ===== 설정 =====
 function saveSettings() {
-  const finnhub = document.getElementById('finnhub-key').value.trim();
   const prime   = document.getElementById('prime-key').value.trim();
   const claude  = document.getElementById('claude-key').value.trim();
 
-  if (finnhub && !finnhub.startsWith('•')) localStorage.setItem(KEYS.finnhub, finnhub);
   if (prime   && !prime.startsWith('•'))   localStorage.setItem(KEYS.prime,   prime);
   if (claude  && !claude.startsWith('•'))  localStorage.setItem(KEYS.claude,  claude);
 
@@ -1053,11 +1094,9 @@ function saveSettings() {
 }
 
 function loadSavedKeys() {
-  const finnhub = getKey(KEYS.finnhub);
   const prime   = getKey(KEYS.prime);
   const claude  = getKey(KEYS.claude);
 
-  if (finnhub) document.getElementById('finnhub-key').value = '••••••' + finnhub.slice(-4);
   if (prime)   document.getElementById('prime-key').value   = '••••••' + prime.slice(-4);
   if (claude)  document.getElementById('claude-key').value  = '••••••' + claude.slice(-4);
 }
@@ -1065,20 +1104,18 @@ function loadSavedKeys() {
 function clearSettings() {
   if (!confirm('저장된 API 키를 모두 삭제할까요?')) return;
   Object.values(KEYS).forEach(k => localStorage.removeItem(k));
-  document.getElementById('finnhub-key').value = '';
+  document.getElementById('prime-key').value = '';
   document.getElementById('claude-key').value = '';
   showToast('🗑️ 초기화 완료');
 }
 
 async function testKeys() {
-  showToast('🔄 연결 테스트 중...');
-  const finnhub = getKey(KEYS.finnhub);
-  if (!finnhub) { showToast('⚠️ Finnhub API 키가 없습니다'); return; }
-
+  showToast('🔄 환율 API 연결 테스트 중...');
   try {
-    const res = await fetch(`https://finnhub.io/api/v1/forex/rates?base=USD&token=${finnhub}`);
-    if (res.ok) showToast('✅ Finnhub 연결 성공!');
-    else showToast('❌ Finnhub 연결 실패');
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const d = await res.json();
+    if (d.result === 'success') showToast('✅ ExchangeRate-API 연결 성공!');
+    else showToast('❌ 연결 실패');
   } catch {
     showToast('❌ 연결 실패');
   }
